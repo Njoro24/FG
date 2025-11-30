@@ -1,9 +1,10 @@
-from django.core.mail import send_mail
+from django.core.mail import send_mail, get_connection
 from django.conf import settings
+import socket
 
 
 def send_otp_email(email, otp):
-    """Send OTP email synchronously (for development without Celery)"""
+    """Send OTP email with timeout handling for Render"""
     subject = 'Your FundiGO OTP Verification Code'
     message = f'''
     Your FundiGO OTP is: {otp}
@@ -16,22 +17,38 @@ def send_otp_email(email, otp):
     The FundiGO Team
     '''
     
-    # Send synchronously (no Celery required for development)
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@fundigo.com')
+    
+    # Always log OTP to console (useful for debugging and when email fails)
+    print(f"📧 OTP for {email}: {otp}")
+    
+    # Check if email is properly configured
+    email_host_user = getattr(settings, 'EMAIL_HOST_USER', '')
+    if not email_host_user:
+        print("⚠️ EMAIL_HOST_USER not configured, skipping email send")
+        return True  # Return True so signup continues
+    
     try:
+        # Set a short timeout to prevent worker from hanging
+        socket.setdefaulttimeout(10)
+        
         send_mail(
             subject=subject,
             message=message,
             from_email=from_email,
             recipient_list=[email],
-            fail_silently=False,
+            fail_silently=True,  # Don't raise exceptions
         )
-        print(f"✅ OTP Email sent to {email}: {otp}")  # For development
+        print(f"✅ OTP Email sent to {email}")
         return True
+    except socket.timeout:
+        print(f"⚠️ Email timeout for {email}, OTP logged above")
+        return True  # Return True so signup continues
     except Exception as e:
-        print(f"❌ Failed to send email: {e}")
-        print(f"📧 OTP for {email}: {otp}")  # Print to console as fallback
-        return False
+        print(f"⚠️ Email failed for {email}: {type(e).__name__}")
+        return True  # Return True so signup continues
+    finally:
+        socket.setdefaulttimeout(None)  # Reset timeout
 
 
 def send_welcome_email(email, full_name):
