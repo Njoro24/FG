@@ -141,7 +141,29 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins (for development/testing)
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins
+
+# Allow all headers and methods
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
 
 # Redis Configuration - Use in-memory cache if Redis not available
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
