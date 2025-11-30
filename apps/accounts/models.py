@@ -1,5 +1,7 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 class UserManager(BaseUserManager):
@@ -28,6 +30,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255, blank=True)
     phone_number = models.CharField(max_length=15, blank=True)
+    profile_photo = models.URLField(blank=True)  # User profile picture
     is_technician = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -45,3 +48,18 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+# Signal to create TechnicianProfile when a technician user is created
+@receiver(post_save, sender='accounts.User')
+def create_technician_profile(sender, instance, created, **kwargs):
+    """Create TechnicianProfile for technician users"""
+    if instance.is_technician:
+        from apps.technicians.models import TechnicianProfile
+        TechnicianProfile.objects.get_or_create(
+            user=instance,
+            defaults={
+                'phone': instance.phone_number or '',
+                'skills': [],
+            }
+        )

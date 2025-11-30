@@ -195,9 +195,16 @@ if USE_S3:
 MPESA_ENVIRONMENT = config("MPESA_ENVIRONMENT", default="sandbox")
 MPESA_CONSUMER_KEY = config("MPESA_CONSUMER_KEY", default="")
 MPESA_CONSUMER_SECRET = config("MPESA_CONSUMER_SECRET", default="")
-MPESA_SHORTCODE = config("MPESA_SHORTCODE", default="")
-MPESA_PASSKEY = config("MPESA_PASSKEY", default="")
+MPESA_SHORTCODE = config("MPESA_SHORTCODE", default="174379")
+MPESA_PASSKEY = config("MPESA_PASSKEY", default="bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919")
 MPESA_CALLBACK_URL = config("MPESA_CALLBACK_URL", default="")
+
+# M-Pesa B2C Configuration (for payouts)
+MPESA_B2C_SHORTCODE = config("MPESA_B2C_SHORTCODE", default="600000")
+MPESA_B2C_INITIATOR_NAME = config("MPESA_B2C_INITIATOR_NAME", default="testapi")
+MPESA_B2C_SECURITY_CREDENTIAL = config("MPESA_B2C_SECURITY_CREDENTIAL", default="")
+MPESA_B2C_RESULT_URL = config("MPESA_B2C_RESULT_URL", default="")
+MPESA_B2C_TIMEOUT_URL = config("MPESA_B2C_TIMEOUT_URL", default="")
 
 # Platform Commission
 PLATFORM_COMMISSION_RATE = config("PLATFORM_COMMISSION_RATE", default=0.15, cast=float)

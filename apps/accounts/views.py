@@ -34,6 +34,83 @@ def signup(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+def technician_signup(request):
+    """Register a new technician with KYC data"""
+    from apps.technicians.models import TechnicianProfile, TechnicianLocation
+    
+    # Validate required fields
+    required_fields = ['email', 'password', 'password2', 'first_name', 'last_name', 
+                       'phone_number', 'id_number', 'profile_photo', 'id_front_photo', 
+                       'id_back_photo', 'selfie_with_id']
+    
+    for field in required_fields:
+        if not request.data.get(field):
+            return Response({'error': f'{field} is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if request.data.get('password') != request.data.get('password2'):
+        return Response({'error': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if email exists
+    if User.objects.filter(email=request.data.get('email')).exists():
+        return Response({'email': ['User with this email already exists']}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # Create user
+        user = User.objects.create_user(
+            email=request.data.get('email'),
+            password=request.data.get('password'),
+            full_name=f"{request.data.get('first_name')} {request.data.get('last_name')}",
+            phone_number=request.data.get('phone_number'),
+            is_technician=True,
+            is_active=False  # Will be activated after OTP verification
+        )
+        user.first_name = request.data.get('first_name')
+        user.last_name = request.data.get('last_name')
+        user.save()
+        
+        # Create technician profile with KYC data
+        profile = TechnicianProfile.objects.create(
+            user=user,
+            phone=request.data.get('phone_number'),
+            skills=request.data.get('skills', []),
+            bio=request.data.get('bio', ''),
+            experience_years=int(request.data.get('experience_years', 0)),
+            id_number=request.data.get('id_number'),
+            profile_photo=request.data.get('profile_photo'),
+            id_front_photo=request.data.get('id_front_photo'),
+            id_back_photo=request.data.get('id_back_photo'),
+            selfie_with_id=request.data.get('selfie_with_id'),
+            kyc_status='pending',  # Submitted for review
+            verification_status='pending'
+        )
+        
+        # Create location if provided
+        if request.data.get('latitude') and request.data.get('longitude'):
+            TechnicianLocation.objects.create(
+                technician=user,
+                latitude=request.data.get('latitude'),
+                longitude=request.data.get('longitude'),
+                address=request.data.get('address', ''),
+                city=request.data.get('address', '').split(',')[0] if request.data.get('address') else '',
+                service_radius_km=int(request.data.get('service_radius', 10))
+            )
+        
+        # Generate and send OTP
+        otp = generate_otp()
+        store_otp(user.email, otp)
+        send_otp_email(user.email, otp)
+        
+        return Response({
+            'message': 'Registration successful. Please verify your email. Your ID will be verified within 24-48 hours.',
+            'email': user.email
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
 # @throttle_classes([OTPRequestThrottle])  # Disabled for development
 def request_otp(request):
     """Request OTP for email verification"""
@@ -156,3 +233,23 @@ def change_password(request):
     user.save()
     
     return Response({'message': 'Password changed successfully'})
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_profile_photo(request):
+    """Update user profile photo"""
+    profile_photo = request.data.get('profile_photo')
+    
+    if not profile_photo:
+        return Response({'error': 'Profile photo URL is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    user = request.user
+    user.profile_photo = profile_photo
+    user.save()
+    
+    return Response({
+        'message': 'Profile photo updated',
+        'profile_photo': user.profile_photo,
+        'user': UserSerializer(user).data
+    })

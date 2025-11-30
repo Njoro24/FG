@@ -1,28 +1,107 @@
 from django.db import models
 from apps.accounts.models import User
 from math import radians, cos, sin, asin, sqrt
+from decimal import Decimal
 
 
 class TechnicianProfile(models.Model):
     VERIFICATION_STATUS = (
-        ('pending', 'Pending'),
+        ('unverified', 'Unverified'),
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    )
+    
+    KYC_STATUS = (
+        ('not_submitted', 'Not Submitted'),
+        ('pending', 'Pending Review'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
     )
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='technician_profile')
     phone = models.CharField(max_length=15)
-    skills = models.JSONField(default=list)  # ['phone_repair', 'laptop_repair', 'tablet_repair']
+    skills = models.JSONField(default=list)
+    bio = models.TextField(blank=True)
+    experience_years = models.IntegerField(default=0)
+    
+    # Profile Photo (REQUIRED for security)
     profile_photo = models.URLField(blank=True)
-    id_front = models.URLField(blank=True)
-    id_back = models.URLField(blank=True)
-    verification_status = models.CharField(max_length=20, choices=VERIFICATION_STATUS, default='pending')
+    
+    # KYC Documents
+    id_number = models.CharField(max_length=20, blank=True)
+    id_front_photo = models.URLField(blank=True)  # Front of ID card
+    id_back_photo = models.URLField(blank=True)   # Back of ID card
+    selfie_with_id = models.URLField(blank=True)  # Selfie holding ID for verification
+    kyc_status = models.CharField(max_length=20, choices=KYC_STATUS, default='not_submitted')
+    kyc_rejection_reason = models.TextField(blank=True)
+    kyc_submitted_at = models.DateTimeField(null=True, blank=True)
+    kyc_verified_at = models.DateTimeField(null=True, blank=True)
+    
+    # Verification & Trust
+    verification_status = models.CharField(max_length=20, choices=VERIFICATION_STATUS, default='unverified')
     rejection_reason = models.TextField(blank=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
+    total_ratings = models.IntegerField(default=0)
+    trust_score = models.IntegerField(default=5)
+    
+    # Wallet & Earnings
+    wallet_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_earnings = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    pending_earnings = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    
+    # Job Stats
     completed_jobs_count = models.IntegerField(default=0)
+    cancelled_jobs_count = models.IntegerField(default=0)
+    active_jobs_count = models.IntegerField(default=0)
+    
+    # Status
     is_online = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    is_available_for_jobs = models.BooleanField(default=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    def update_trust_score(self, rating_value):
+        """Update trust score based on rating (1-5 stars)"""
+        if rating_value >= 4:
+            self.trust_score += 5
+        elif rating_value <= 2:
+            self.trust_score -= 5
+        
+        if self.trust_score <= -10:
+            self.is_active = False
+            self.user.is_active = False
+            self.user.save()
+        
+        self.save()
+    
+    def add_rating(self, rating_value):
+        """Add a new rating and update average"""
+        total = float(self.rating) * self.total_ratings
+        self.total_ratings += 1
+        self.rating = Decimal((total + rating_value) / self.total_ratings)
+        self.update_trust_score(rating_value)
+    
+    def add_earnings(self, amount):
+        """Add earnings to wallet"""
+        self.wallet_balance += Decimal(amount)
+        self.total_earnings += Decimal(amount)
+        self.save()
+    
+    def is_kyc_complete(self):
+        """Check if KYC is complete and approved"""
+        return self.kyc_status == 'approved'
+    
+    def can_accept_jobs(self):
+        """Check if technician can accept jobs"""
+        return (
+            self.is_active and 
+            self.is_available_for_jobs and 
+            self.kyc_status == 'approved' and
+            self.profile_photo
+        )
     
     def __str__(self):
         return f"Technician: {self.user.email}"

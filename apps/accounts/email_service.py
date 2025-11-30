@@ -4,16 +4,16 @@ from django.conf import settings
 
 def send_otp_email(email, otp):
     """Send OTP email synchronously (for development without Celery)"""
-    subject = 'Your Fundigo Verification Code'
+    subject = 'Your FundiGO OTP Verification Code'
     message = f'''
-    Your verification code is: {otp}
+    Your FundiGO OTP is: {otp}
     
     This code will expire in 10 minutes.
     
     If you didn't request this code, please ignore this email.
     
     Best regards,
-    Fundigo Team
+    The FundiGO Team
     '''
     
     # Send synchronously (no Celery required for development)
@@ -36,16 +36,16 @@ def send_otp_email(email, otp):
 
 def send_welcome_email(email, full_name):
     """Send welcome email to new user"""
-    subject = 'Welcome to Fundigo!'
+    subject = 'Welcome to FundiGO!'
     message = f'''
     Hi {full_name},
     
-    Welcome to Fundigo! Your account has been successfully created.
+    Welcome to FundiGO! Your account has been successfully created.
     
     You can now book technicians for your device repairs or register as a technician to offer your services.
     
     Best regards,
-    Fundigo Team
+    The FundiGO Team
     '''
     
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@fundigo.com')
