@@ -13,13 +13,14 @@ SECRET_KEY = config("SECRET_KEY", default="django-insecure-change-this-in-produc
 
 DEBUG = config("DEBUG", default=True, cast=bool)
 
-# Allow all Back4app container hosts and common hosts
+# Allow Back4app and common hosts
 ALLOWED_HOSTS = [
-    ".containers.back4app.com",  # All Back4app container nodes
+    "fgbe-zzdyjnhl.b4a.run",
+    ".b4a.run",
+    ".containers.back4app.com",
     ".back4app.com",
     "localhost",
     "127.0.0.1",
-    "*",  # Fallback - allow all (remove in strict production)
 ]
 
 INSTALLED_APPS = [
