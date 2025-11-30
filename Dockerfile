@@ -4,11 +4,11 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
 
 RUN apt-get update && apt-get install -y \
     gcc \
-    postgresql-client \
-    curl \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -16,10 +16,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Make start script executable
-RUN chmod +x start.sh
+RUN chmod +x start.sh build.sh
+
+RUN python manage.py collectstatic --no-input
 
 EXPOSE 8000
 
-# Run migrations and start server
 CMD ["./start.sh"]
