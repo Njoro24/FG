@@ -5,9 +5,27 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
 from apps.core.views import health_check
 
+
+def api_root(request):
+    """API root endpoint"""
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'FundiGO API',
+        'endpoints': {
+            'auth': '/api/auth/',
+            'technicians': '/api/technicians/',
+            'bookings': '/api/bookings/',
+            'payments': '/api/payments/',
+        }
+    })
+
+
 urlpatterns = [
+    path('', api_root, name='root'),
+    path('api/', api_root, name='api_root'),
     path('admin/', admin.site.urls),
     path('api/health/', health_check, name='health_check'),
     path('api/auth/', include('apps.accounts.urls')),
