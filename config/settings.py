@@ -75,9 +75,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Database - Use DATABASE_URL if available (Render), otherwise use individual settings
-DATABASE_URL = config("DATABASE_URL", default="")
-if DATABASE_URL:
+# Database - Use DATABASE_URL if available (Render), otherwise use SQLite
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+if DATABASE_URL and DATABASE_URL.startswith("postgres"):
     DATABASES = {
         "default": dj_database_url.config(
             default=DATABASE_URL,
@@ -88,12 +88,8 @@ if DATABASE_URL:
 else:
     DATABASES = {
         "default": {
-            "ENGINE": config("DB_ENGINE", default="django.db.backends.sqlite3"),
-            "NAME": config("DB_NAME", default=str(BASE_DIR / "db.sqlite3")),
-            "USER": config("DB_USER", default=""),
-            "PASSWORD": config("DB_PASSWORD", default=""),
-            "HOST": config("DB_HOST", default=""),
-            "PORT": config("DB_PORT", default=""),
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 
