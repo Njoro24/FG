@@ -61,15 +61,24 @@ def technician_signup(request):
         return Response({'error': 'Password must contain at least one lowercase letter'}, status=status.HTTP_400_BAD_REQUEST)
     if not re.search(r'\d', password):
         return Response({'error': 'Password must contain at least one number'}, status=status.HTTP_400_BAD_REQUEST)
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return Response({'error': 'Password must contain at least one special character (!@#$%^&*)'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Check if email exists
-    if User.objects.filter(email=request.data.get('email')).exists():
-        return Response({'email': ['User with this email already exists']}, status=status.HTTP_400_BAD_REQUEST)
+    email = request.data.get('email')
+    existing_user = User.objects.filter(email=email).first()
+    
+    if existing_user:
+        # Check if user has a technician profile already
+        if hasattr(existing_user, 'technician_profile'):
+            return Response({'error': 'A technician account with this email already exists. Please login instead.'}, status=status.HTTP_400_BAD_REQUEST)
+        # User exists but no technician profile - delete and recreate
+        existing_user.delete()
     
     try:
         # Create user
         user = User.objects.create_user(
-            email=request.data.get('email'),
+            email=email,
             password=request.data.get('password'),
             full_name=f"{request.data.get('first_name')} {request.data.get('last_name')}",
             phone_number=request.data.get('phone_number'),
