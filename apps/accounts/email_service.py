@@ -1,6 +1,4 @@
 import os
-from django.core.mail import send_mail
-from django.conf import settings
 
 # Initialize Brevo (Sendinblue) API - optional
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
@@ -18,28 +16,14 @@ except ImportError:
     BREVO_AVAILABLE = False
 
 
-def send_email_via_django(to_email, subject, html_content, text_content=None):
-    """Send email using Django's built-in SMTP (Gmail)"""
-    try:
-        send_mail(
-            subject=subject,
-            message=text_content or '',
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[to_email],
-            html_message=html_content,
-            fail_silently=False,
-        )
-        print(f"✅ Email sent to {to_email} via Django SMTP")
-        return True
-    except Exception as e:
-        print(f"❌ Django SMTP email failed: {e}")
-        return False
-
-
 def send_email_via_brevo(to_email, to_name, subject, html_content, text_content=None):
-    """Send email using Brevo (Sendinblue) API, fallback to Django SMTP"""
+    """
+    Send email using Brevo (Sendinblue) API.
+    If Brevo fails, just log and continue - don't block the request.
+    OTP is logged to console so users can still verify.
+    """
     
-    # Try Brevo first if available and configured
+    # Try Brevo if available and configured
     if BREVO_AVAILABLE and BREVO_API_KEY:
         try:
             api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
@@ -58,10 +42,12 @@ def send_email_via_brevo(to_email, to_name, subject, html_content, text_content=
             print(f"✅ Email sent to {to_email} via Brevo (ID: {response.message_id})")
             return True
         except Exception as e:
-            print(f"⚠️ Brevo failed: {e}, falling back to Django SMTP")
-    
-    # Fallback to Django SMTP (Gmail)
-    return send_email_via_django(to_email, subject, html_content, text_content)
+            print(f"⚠️ Brevo email failed: {e}")
+            print(f"📝 Email not sent to {to_email} - check Brevo account activation")
+            return False
+    else:
+        print(f"⚠️ Brevo not configured - email not sent to {to_email}")
+        return False
 
 
 def send_otp_email(email, otp):
