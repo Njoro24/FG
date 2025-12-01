@@ -16,6 +16,9 @@ from .throttles import OTPRequestThrottle, OTPVerifyThrottle
 @throttle_classes([OTPRequestThrottle])
 def signup(request):
     """Register a new user and send OTP for verification"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     serializer = UserRegistrationSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
@@ -23,7 +26,17 @@ def signup(request):
         # Generate and send OTP
         otp = generate_otp()
         store_otp(user.email, otp)
-        send_otp_email(user.email, otp)
+        
+        # Print OTP to logs for debugging
+        print(f"📧 OTP for {user.email}: {otp}")
+        logger.info(f"📧 OTP for {user.email}: {otp}")
+        
+        # Try to send email but don't crash if it fails
+        try:
+            send_otp_email(user.email, otp)
+        except Exception as email_error:
+            logger.warning(f"⚠️ Email send failed (continuing anyway): {email_error}")
+            print(f"⚠️ Email send failed (continuing anyway): {email_error}")
         
         return Response({
             'message': 'Registration successful. Please verify your email with the OTP sent.',
@@ -150,7 +163,17 @@ def technician_signup(request):
         # Generate and send OTP (outside transaction - email failure shouldn't rollback user)
         otp = generate_otp()
         store_otp(user.email, otp)
-        send_otp_email(user.email, otp)
+        
+        # Print OTP to logs for debugging (visible in Render logs)
+        print(f"📧 OTP for {user.email}: {otp}")
+        logger.info(f"📧 OTP for {user.email}: {otp}")
+        
+        # Try to send email but don't crash if it fails
+        try:
+            send_otp_email(user.email, otp)
+        except Exception as email_error:
+            logger.warning(f"⚠️ Email send failed (continuing anyway): {email_error}")
+            print(f"⚠️ Email send failed (continuing anyway): {email_error}")
         
         return Response({
             'message': 'Registration successful. Please verify your email. Your ID will be verified within 24-48 hours.',
