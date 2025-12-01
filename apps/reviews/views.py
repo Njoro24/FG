@@ -12,13 +12,20 @@ class ReviewViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        if user.user_type == 'customer':
-            return Review.objects.filter(customer=user)
-        elif user.user_type == 'technician':
+        # Use is_technician field instead of non-existent user_type
+        if user.is_technician:
             return Review.objects.filter(technician=user)
-        return Review.objects.none()
+        else:
+            return Review.objects.filter(customer=user)
     
     def create(self, request):
+        # Only customers can create reviews
+        if request.user.is_technician:
+            return Response(
+                {'error': 'Technicians cannot create reviews'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
         serializer = ReviewCreateSerializer(data=request.data)
         if serializer.is_valid():
             review = serializer.save(customer=request.user)

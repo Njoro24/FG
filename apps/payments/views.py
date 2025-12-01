@@ -111,8 +111,20 @@ def initiate_job_payment_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def mpesa_stk_callback(request):
-    """M-Pesa STK Push callback - called by Safaricom"""
-    logger.info(f"M-Pesa Callback: {request.data}")
+    """M-Pesa STK Push callback - called by Safaricom
+    
+    Security Note: In production, you should:
+    1. Whitelist Safaricom IPs
+    2. Verify the callback signature if available
+    3. Use HTTPS only
+    """
+    # Log callback for debugging (remove sensitive data in production)
+    logger.info(f"M-Pesa Callback received from IP: {request.META.get('REMOTE_ADDR')}")
+    
+    # Basic validation - ensure we have the expected structure
+    if not request.data or 'Body' not in request.data:
+        logger.warning("Invalid callback structure received")
+        return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
     
     try:
         callback_data = parse_stk_callback(request.data)
@@ -121,6 +133,10 @@ def mpesa_stk_callback(request):
         
         checkout_request_id = callback_data.get('checkout_request_id')
         result_code = callback_data.get('result_code')
+        
+        if not checkout_request_id:
+            logger.warning("Missing checkout_request_id in callback")
+            return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
         
         try:
             job_payment = JobPayment.objects.get(mpesa_checkout_request_id=checkout_request_id)

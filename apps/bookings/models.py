@@ -28,6 +28,7 @@ class JobPosting(models.Model):
         ('cctv', 'CCTV Installation'),
         ('electric_fence', 'Electric Fence'),
         ('appliances', 'Small Appliances'),
+        ('movers', 'Movers & Relocation'),
         ('other', 'Other'),
     )
     
@@ -163,6 +164,17 @@ class Booking(models.Model):
         ('laptop_repair', 'Laptop Repair'),
         ('tablet_repair', 'Tablet Repair'),
         ('computer_repair', 'Computer Repair'),
+        ('solar_systems', 'Solar Systems'),
+        ('water_pumps', 'Water Pumps'),
+        ('fridges', 'Fridges & Freezers'),
+        ('cookers', 'Cookers & Ovens'),
+        ('microwaves', 'Microwaves'),
+        ('showers', 'Showers & Geysers'),
+        ('tv_mounting', 'TV Mounting'),
+        ('cctv', 'CCTV Installation'),
+        ('electric_fence', 'Electric Fence'),
+        ('appliances', 'Small Appliances'),
+        ('movers', 'Movers & Relocation'),
         ('other', 'Other'),
     )
     

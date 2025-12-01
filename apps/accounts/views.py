@@ -36,6 +36,7 @@ def signup(request):
 @permission_classes([AllowAny])
 def technician_signup(request):
     """Register a new technician with KYC data"""
+    import re
     from apps.technicians.models import TechnicianProfile, TechnicianLocation
     
     # Validate required fields
@@ -47,8 +48,19 @@ def technician_signup(request):
         if not request.data.get(field):
             return Response({'error': f'{field} is required'}, status=status.HTTP_400_BAD_REQUEST)
     
-    if request.data.get('password') != request.data.get('password2'):
+    password = request.data.get('password')
+    if password != request.data.get('password2'):
         return Response({'error': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Password strength validation
+    if len(password) < 8:
+        return Response({'error': 'Password must be at least 8 characters'}, status=status.HTTP_400_BAD_REQUEST)
+    if not re.search(r'[A-Z]', password):
+        return Response({'error': 'Password must contain at least one uppercase letter'}, status=status.HTTP_400_BAD_REQUEST)
+    if not re.search(r'[a-z]', password):
+        return Response({'error': 'Password must contain at least one lowercase letter'}, status=status.HTTP_400_BAD_REQUEST)
+    if not re.search(r'\d', password):
+        return Response({'error': 'Password must contain at least one number'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Check if email exists
     if User.objects.filter(email=request.data.get('email')).exists():

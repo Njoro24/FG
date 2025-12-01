@@ -27,6 +27,7 @@ urlpatterns = [
     path('company/me/', views.get_my_company, name='my_company'),
     path('company/update/', views.update_company, name='update_company'),
     path('company/verify/', views.submit_company_verification, name='submit_company_verification'),
+    path('company/dashboard/', views.get_company_dashboard, name='company_dashboard'),
     path('companies/', views.get_verified_companies, name='verified_companies'),
     
     # Live location endpoints
