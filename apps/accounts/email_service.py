@@ -1,43 +1,67 @@
 import os
-import sib_api_v3_sdk
-from sib_api_v3_sdk.rest import ApiException
+from django.core.mail import send_mail
+from django.conf import settings
 
-# Initialize Brevo (Sendinblue) API
+# Initialize Brevo (Sendinblue) API - optional
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
 FROM_EMAIL = os.environ.get('BREVO_FROM_EMAIL', 'fundigo.noreply@gmail.com')
 FROM_NAME = os.environ.get('BREVO_FROM_NAME', 'FundiGO')
 
-# Configure API client
-configuration = sib_api_v3_sdk.Configuration()
-configuration.api_key['api-key'] = BREVO_API_KEY
+# Try to import Brevo SDK
+try:
+    import sib_api_v3_sdk
+    from sib_api_v3_sdk.rest import ApiException
+    configuration = sib_api_v3_sdk.Configuration()
+    configuration.api_key['api-key'] = BREVO_API_KEY
+    BREVO_AVAILABLE = True
+except ImportError:
+    BREVO_AVAILABLE = False
+
+
+def send_email_via_django(to_email, subject, html_content, text_content=None):
+    """Send email using Django's built-in SMTP (Gmail)"""
+    try:
+        send_mail(
+            subject=subject,
+            message=text_content or '',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[to_email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+        print(f"✅ Email sent to {to_email} via Django SMTP")
+        return True
+    except Exception as e:
+        print(f"❌ Django SMTP email failed: {e}")
+        return False
 
 
 def send_email_via_brevo(to_email, to_name, subject, html_content, text_content=None):
-    """Send email using Brevo (Sendinblue) API"""
-    if not BREVO_API_KEY:
-        print(f"⚠️ BREVO_API_KEY not configured, email not sent")
-        return False
+    """Send email using Brevo (Sendinblue) API, fallback to Django SMTP"""
     
-    try:
-        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
-        
-        send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
-            to=[{"email": to_email, "name": to_name or to_email}],
-            sender={"email": FROM_EMAIL, "name": FROM_NAME},
-            subject=subject,
-            html_content=html_content,
-            text_content=text_content
-        )
-        
-        response = api_instance.send_transac_email(send_smtp_email)
-        print(f"✅ Email sent to {to_email} via Brevo (ID: {response.message_id})")
-        return True
-    except ApiException as e:
-        print(f"❌ Brevo email failed: {e}")
-        return False
-    except Exception as e:
-        print(f"❌ Email error: {e}")
-        return False
+    # Try Brevo first if available and configured
+    if BREVO_AVAILABLE and BREVO_API_KEY:
+        try:
+            api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
+                sib_api_v3_sdk.ApiClient(configuration)
+            )
+            
+            send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+                to=[{"email": to_email, "name": to_name or to_email}],
+                sender={"email": FROM_EMAIL, "name": FROM_NAME},
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content
+            )
+            
+            response = api_instance.send_transac_email(send_smtp_email)
+            print(f"✅ Email sent to {to_email} via Brevo (ID: {response.message_id})")
+            return True
+        except Exception as e:
+            print(f"⚠️ Brevo failed: {e}, falling back to Django SMTP")
+    
+    # Fallback to Django SMTP (Gmail)
+    return send_email_via_django(to_email, subject, html_content, text_content)
 
 
 def send_otp_email(email, otp):
