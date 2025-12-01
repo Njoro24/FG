@@ -115,13 +115,15 @@ class TechnicianProfile(models.Model):
     experience_years = models.IntegerField(default=0)
     
     # Profile Photo (REQUIRED for security)
-    profile_photo = models.URLField(blank=True)
+    # Using TextField to support base64 encoded images or URLs
+    profile_photo = models.TextField(blank=True)
     
     # KYC Documents
     id_number = models.CharField(max_length=20, blank=True)
-    id_front_photo = models.URLField(blank=True)  # Front of ID card
-    id_back_photo = models.URLField(blank=True)   # Back of ID card
-    selfie_with_id = models.URLField(blank=True)  # Selfie holding ID for verification
+    # Using TextField to support base64 encoded images or URLs
+    id_front_photo = models.TextField(blank=True)  # Front of ID card
+    id_back_photo = models.TextField(blank=True)   # Back of ID card
+    selfie_with_id = models.TextField(blank=True)  # Selfie holding ID for verification
     kyc_status = models.CharField(max_length=20, choices=KYC_STATUS, default='not_submitted')
     kyc_rejection_reason = models.TextField(blank=True)
     kyc_submitted_at = models.DateTimeField(null=True, blank=True)
