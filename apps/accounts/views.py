@@ -37,16 +37,24 @@ def signup(request):
 def technician_signup(request):
     """Register a new technician with KYC data"""
     import re
+    import logging
+    logger = logging.getLogger(__name__)
+    
     from apps.technicians.models import TechnicianProfile, TechnicianLocation
+    
+    # Log incoming request data (without sensitive info)
+    logger.info(f"Technician signup request - email: {request.data.get('email')}")
+    logger.info(f"Request fields present: {list(request.data.keys())}")
     
     # Validate required fields
     required_fields = ['email', 'password', 'password2', 'first_name', 'last_name', 
                        'phone_number', 'id_number', 'profile_photo', 'id_front_photo', 
                        'id_back_photo', 'selfie_with_id']
     
-    for field in required_fields:
-        if not request.data.get(field):
-            return Response({'error': f'{field} is required'}, status=status.HTTP_400_BAD_REQUEST)
+    missing_fields = [f for f in required_fields if not request.data.get(f)]
+    if missing_fields:
+        logger.warning(f"Missing fields: {missing_fields}")
+        return Response({'error': f'{missing_fields[0]} is required'}, status=status.HTTP_400_BAD_REQUEST)
     
     password = request.data.get('password')
     if password != request.data.get('password2'):
@@ -127,6 +135,9 @@ def technician_signup(request):
         }, status=status.HTTP_201_CREATED)
         
     except Exception as e:
+        import traceback
+        logger.error(f"Technician signup error: {str(e)}")
+        logger.error(traceback.format_exc())
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
