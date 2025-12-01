@@ -1,41 +1,47 @@
 import os
-import resend
-from django.conf import settings
+import sib_api_v3_sdk
+from sib_api_v3_sdk.rest import ApiException
 
-# Initialize Resend with API key
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-resend.api_key = RESEND_API_KEY
+# Initialize Brevo (Sendinblue) API
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
+FROM_EMAIL = os.environ.get('BREVO_FROM_EMAIL', 'fundigo.noreply@gmail.com')
+FROM_NAME = os.environ.get('BREVO_FROM_NAME', 'FundiGO')
 
-# From email - must be verified domain or use Resend's test domain
-FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'FundiGO <onboarding@resend.dev>')
+# Configure API client
+configuration = sib_api_v3_sdk.Configuration()
+configuration.api_key['api-key'] = BREVO_API_KEY
 
 
-def send_email_via_resend(to_email, subject, html_content, text_content=None):
-    """Send email using Resend API"""
-    if not RESEND_API_KEY:
-        print(f"⚠️ RESEND_API_KEY not configured, email not sent")
+def send_email_via_brevo(to_email, to_name, subject, html_content, text_content=None):
+    """Send email using Brevo (Sendinblue) API"""
+    if not BREVO_API_KEY:
+        print(f"⚠️ BREVO_API_KEY not configured, email not sent")
         return False
     
     try:
-        params = {
-            "from": FROM_EMAIL,
-            "to": [to_email],
-            "subject": subject,
-            "html": html_content,
-        }
-        if text_content:
-            params["text"] = text_content
-            
-        response = resend.Emails.send(params)
-        print(f"✅ Email sent to {to_email} via Resend")
+        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
+        
+        send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+            to=[{"email": to_email, "name": to_name or to_email}],
+            sender={"email": FROM_EMAIL, "name": FROM_NAME},
+            subject=subject,
+            html_content=html_content,
+            text_content=text_content
+        )
+        
+        response = api_instance.send_transac_email(send_smtp_email)
+        print(f"✅ Email sent to {to_email} via Brevo (ID: {response.message_id})")
         return True
+    except ApiException as e:
+        print(f"❌ Brevo email failed: {e}")
+        return False
     except Exception as e:
-        print(f"❌ Resend email failed: {e}")
+        print(f"❌ Email error: {e}")
         return False
 
 
 def send_otp_email(email, otp):
-    """Send OTP email using Resend"""
+    """Send OTP email using Brevo"""
     # Always log OTP to console for debugging
     print(f"📧 OTP for {email}: {otp}")
     
@@ -60,18 +66,18 @@ def send_otp_email(email, otp):
         </div>
     </div>
     '''
-
+    
     text_content = f'''
-    Your FundiGO OTP is: {otp}
+Your FundiGO OTP is: {otp}
+
+This code will expire in 10 minutes.
+If you didn't request this code, please ignore this email.
+
+Best regards,
+The FundiGO Team
+'''
     
-    This code will expire in 10 minutes.
-    If you didn't request this code, please ignore this email.
-    
-    Best regards,
-    The FundiGO Team
-    '''
-    
-    return send_email_via_resend(email, subject, html_content, text_content)
+    return send_email_via_brevo(email, None, subject, html_content, text_content)
 
 
 def send_welcome_email(email, full_name):
@@ -94,13 +100,10 @@ def send_welcome_email(email, full_name):
             </ul>
             <a href="https://fundigo25.netlify.app/dashboard" style="display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin-top: 20px;">Go to Dashboard</a>
         </div>
-        <div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">
-            © 2024 FundiGO. All rights reserved.
-        </div>
     </div>
     '''
     
-    return send_email_via_resend(email, subject, html_content)
+    return send_email_via_brevo(email, full_name, subject, html_content)
 
 
 def send_verification_status_email(email, status, reason=''):
@@ -134,7 +137,7 @@ def send_verification_status_email(email, status, reason=''):
         </div>
         '''
     
-    return send_email_via_resend(email, subject, html_content)
+    return send_email_via_brevo(email, None, subject, html_content)
 
 
 def send_booking_notification(email, booking_id, event):
@@ -154,4 +157,4 @@ def send_booking_notification(email, booking_id, event):
     </div>
     '''
     
-    return send_email_via_resend(email, subject, html_content)
+    return send_email_via_brevo(email, None, subject, html_content)
