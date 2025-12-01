@@ -42,7 +42,7 @@ def send_email_via_django(to_email, subject, html_content, text_content=None):
 def send_email_via_brevo(to_email, to_name, subject, html_content, text_content=None):
     """
     Send email using Brevo (Sendinblue) API.
-    Falls back to Django SMTP if Brevo is not configured.
+    Does NOT fallback to Django SMTP to avoid timeout issues.
     OTP is logged to console so users can still verify.
     """
     
@@ -66,12 +66,14 @@ def send_email_via_brevo(to_email, to_name, subject, html_content, text_content=
             return True
         except Exception as e:
             print(f"⚠️ Brevo email failed: {e}")
-            print(f"📝 Falling back to Django SMTP...")
-            return send_email_via_django(to_email, subject, html_content, text_content)
+            # Don't fallback to Django SMTP - it causes timeout issues
+            print(f"📝 Email not sent - check OTP in logs above")
+            return False
     else:
-        # Fall back to Django's built-in email
-        print(f"⚠️ Brevo not configured - using Django SMTP for {to_email}")
-        return send_email_via_django(to_email, subject, html_content, text_content)
+        # Brevo not configured - just log and return
+        print(f"⚠️ Brevo not configured - email not sent to {to_email}")
+        print(f"📝 Check OTP in logs above")
+        return False
 
 
 def send_otp_email(email, otp):
