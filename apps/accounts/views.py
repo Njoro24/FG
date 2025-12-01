@@ -38,6 +38,7 @@ def technician_signup(request):
     """Register a new technician with KYC data"""
     import re
     import logging
+    from django.db import transaction
     logger = logging.getLogger(__name__)
     
     from apps.technicians.models import TechnicianProfile, TechnicianLocation
@@ -84,47 +85,49 @@ def technician_signup(request):
         existing_user.delete()
     
     try:
-        # Create user
-        user = User.objects.create_user(
-            email=email,
-            password=request.data.get('password'),
-            full_name=f"{request.data.get('first_name')} {request.data.get('last_name')}",
-            phone_number=request.data.get('phone_number'),
-            is_technician=True,
-            is_active=False  # Will be activated after OTP verification
-        )
-        user.first_name = request.data.get('first_name')
-        user.last_name = request.data.get('last_name')
-        user.save()
-        
-        # Create technician profile with KYC data
-        profile = TechnicianProfile.objects.create(
-            user=user,
-            phone=request.data.get('phone_number'),
-            skills=request.data.get('skills', []),
-            bio=request.data.get('bio', ''),
-            experience_years=int(request.data.get('experience_years', 0)),
-            id_number=request.data.get('id_number'),
-            profile_photo=request.data.get('profile_photo'),
-            id_front_photo=request.data.get('id_front_photo'),
-            id_back_photo=request.data.get('id_back_photo'),
-            selfie_with_id=request.data.get('selfie_with_id'),
-            kyc_status='pending',  # Submitted for review
-            verification_status='pending'
-        )
-        
-        # Create location if provided
-        if request.data.get('latitude') and request.data.get('longitude'):
-            TechnicianLocation.objects.create(
-                technician=user,
-                latitude=request.data.get('latitude'),
-                longitude=request.data.get('longitude'),
-                address=request.data.get('address', ''),
-                city=request.data.get('address', '').split(',')[0] if request.data.get('address') else '',
-                service_radius_km=int(request.data.get('service_radius', 10))
+        # Use transaction.atomic to ensure all-or-nothing database operations
+        with transaction.atomic():
+            # Create user
+            user = User.objects.create_user(
+                email=email,
+                password=request.data.get('password'),
+                full_name=f"{request.data.get('first_name')} {request.data.get('last_name')}",
+                phone_number=request.data.get('phone_number'),
+                is_technician=True,
+                is_active=False  # Will be activated after OTP verification
             )
+            user.first_name = request.data.get('first_name')
+            user.last_name = request.data.get('last_name')
+            user.save()
+            
+            # Create technician profile with KYC data
+            profile = TechnicianProfile.objects.create(
+                user=user,
+                phone=request.data.get('phone_number'),
+                skills=request.data.get('skills', []),
+                bio=request.data.get('bio', ''),
+                experience_years=int(request.data.get('experience_years', 0)),
+                id_number=request.data.get('id_number'),
+                profile_photo=request.data.get('profile_photo'),
+                id_front_photo=request.data.get('id_front_photo'),
+                id_back_photo=request.data.get('id_back_photo'),
+                selfie_with_id=request.data.get('selfie_with_id'),
+                kyc_status='pending',  # Submitted for review
+                verification_status='pending'
+            )
+            
+            # Create location if provided
+            if request.data.get('latitude') and request.data.get('longitude'):
+                TechnicianLocation.objects.create(
+                    technician=user,
+                    latitude=request.data.get('latitude'),
+                    longitude=request.data.get('longitude'),
+                    address=request.data.get('address', ''),
+                    city=request.data.get('address', '').split(',')[0] if request.data.get('address') else '',
+                    service_radius_km=int(request.data.get('service_radius', 10))
+                )
         
-        # Generate and send OTP
+        # Generate and send OTP (outside transaction - email failure shouldn't rollback user)
         otp = generate_otp()
         store_otp(user.email, otp)
         send_otp_email(user.email, otp)
