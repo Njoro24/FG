@@ -4,6 +4,85 @@ from math import radians, cos, sin, asin, sqrt
 from decimal import Decimal
 
 
+class Company(models.Model):
+    """Company/Business registration for service providers"""
+    VERIFICATION_STATUS = (
+        ('not_submitted', 'Not Submitted'),
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    )
+    
+    COMPANY_TYPE = (
+        ('sole_proprietor', 'Sole Proprietorship'),
+        ('partnership', 'Partnership'),
+        ('limited', 'Limited Company'),
+        ('other', 'Other'),
+    )
+    
+    # Owner/Admin
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_companies')
+    
+    # Company Details
+    name = models.CharField(max_length=255)
+    company_type = models.CharField(max_length=20, choices=COMPANY_TYPE, default='sole_proprietor')
+    registration_number = models.CharField(max_length=50, blank=True)  # Business registration number
+    kra_pin = models.CharField(max_length=20, blank=True)  # KRA PIN for Kenya
+    
+    # Contact
+    email = models.EmailField()
+    phone = models.CharField(max_length=15)
+    website = models.URLField(blank=True)
+    
+    # Address
+    address = models.TextField()
+    city = models.CharField(max_length=100)
+    
+    # Services offered
+    services = models.JSONField(default=list)  # e.g., ['laptop_repair', 'solar_systems', 'cctv']
+    description = models.TextField(blank=True)
+    
+    # Branding
+    logo = models.URLField(blank=True)
+    
+    # Verification Documents
+    business_certificate = models.URLField(blank=True)  # Certificate of registration
+    kra_certificate = models.URLField(blank=True)  # KRA PIN certificate
+    business_permit = models.URLField(blank=True)  # County business permit
+    
+    # Verification Status
+    verification_status = models.CharField(max_length=20, choices=VERIFICATION_STATUS, default='not_submitted')
+    rejection_reason = models.TextField(blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    
+    # Commission rate (20% for companies vs 15% for individuals)
+    commission_rate = models.DecimalField(max_digits=4, decimal_places=2, default=0.20)
+    
+    # Stats
+    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
+    total_ratings = models.IntegerField(default=0)
+    completed_jobs_count = models.IntegerField(default=0)
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name_plural = "Companies"
+    
+    def __str__(self):
+        return f"{self.name} ({self.company_type})"
+    
+    def is_verified(self):
+        return self.verification_status == 'approved'
+    
+    def get_commission_rate(self):
+        """Companies pay 20% commission"""
+        return self.commission_rate
+
+
 class TechnicianProfile(models.Model):
     VERIFICATION_STATUS = (
         ('unverified', 'Unverified'),
@@ -19,7 +98,17 @@ class TechnicianProfile(models.Model):
         ('rejected', 'Rejected'),
     )
     
+    ACCOUNT_TYPE = (
+        ('individual', 'Individual'),
+        ('company', 'Company'),
+    )
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='technician_profile')
+    
+    # Account type - individual or company
+    account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPE, default='individual')
+    company = models.ForeignKey(Company, on_delete=models.SET_NULL, null=True, blank=True, related_name='technicians')
+    
     phone = models.CharField(max_length=15)
     skills = models.JSONField(default=list)
     bio = models.TextField(blank=True)
@@ -96,6 +185,15 @@ class TechnicianProfile(models.Model):
     
     def can_accept_jobs(self):
         """Check if technician can accept jobs"""
+        # For company accounts, check company verification
+        if self.account_type == 'company' and self.company:
+            return (
+                self.is_active and 
+                self.is_available_for_jobs and 
+                self.company.verification_status == 'approved' and
+                self.profile_photo
+            )
+        # For individual accounts, check KYC
         return (
             self.is_active and 
             self.is_available_for_jobs and 
@@ -103,17 +201,33 @@ class TechnicianProfile(models.Model):
             self.profile_photo
         )
     
+    def get_commission_rate(self):
+        """Get commission rate - 20% for companies, 15% for individuals"""
+        if self.account_type == 'company' and self.company:
+            return self.company.commission_rate
+        return Decimal('0.15')  # 15% for individuals
+    
     def __str__(self):
+        if self.account_type == 'company' and self.company:
+            return f"Technician: {self.user.email} ({self.company.name})"
         return f"Technician: {self.user.email}"
 
 
 class TechnicianLocation(models.Model):
+    """Technician location with live tracking support"""
     technician = models.OneToOneField(User, on_delete=models.CASCADE, related_name='location')
     address = models.TextField()
     city = models.CharField(max_length=100)
     latitude = models.DecimalField(max_digits=9, decimal_places=6)
     longitude = models.DecimalField(max_digits=9, decimal_places=6)
     service_radius_km = models.IntegerField(default=10)
+    
+    # Live tracking
+    is_live = models.BooleanField(default=False)  # Is technician sharing live location?
+    heading = models.FloatField(null=True, blank=True)  # Direction in degrees
+    speed = models.FloatField(null=True, blank=True)  # Speed in km/h
+    accuracy = models.FloatField(null=True, blank=True)  # GPS accuracy in meters
+    
     last_updated = models.DateTimeField(auto_now=True)
     
     def __str__(self):

@@ -3,13 +3,18 @@ from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import TechnicianProfile, TechnicianAvailability, TechnicianLocation
+from django.db.models import Q
+from .models import TechnicianProfile, TechnicianAvailability, TechnicianLocation, Company
 from .serializers import (
     TechnicianProfileSerializer,
     TechnicianAvailabilitySerializer,
     TechnicianLocationSerializer,
     TechnicianDashboardSerializer,
-    KYCSubmissionSerializer
+    KYCSubmissionSerializer,
+    CompanySerializer,
+    CompanyRegistrationSerializer,
+    CompanyVerificationSerializer,
+    LiveLocationUpdateSerializer
 )
 from apps.accounts.permissions import IsTechnician
 
@@ -197,3 +202,230 @@ class TechnicianLocationViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         return TechnicianLocation.objects.filter(technician=self.request.user)
+
+
+# ============================================
+# COMPANY ENDPOINTS
+# ============================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def register_company(request):
+    """Register a new company"""
+    serializer = CompanyRegistrationSerializer(data=request.data)
+    if serializer.is_valid():
+        company = serializer.save(owner=request.user)
+        company.verification_status = 'pending'
+        company.save()
+        
+        # Update technician profile to company type
+        try:
+            profile = TechnicianProfile.objects.get(user=request.user)
+            profile.account_type = 'company'
+            profile.company = company
+            profile.save()
+        except TechnicianProfile.DoesNotExist:
+            # Create technician profile if doesn't exist
+            TechnicianProfile.objects.create(
+                user=request.user,
+                account_type='company',
+                company=company,
+                phone=company.phone,
+                skills=company.services
+            )
+            request.user.is_technician = True
+            request.user.save()
+        
+        return Response({
+            'message': 'Company registered successfully. Verification usually takes 24-48 hours.',
+            'company': CompanySerializer(company).data
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_my_company(request):
+    """Get current user's company"""
+    try:
+        company = Company.objects.get(owner=request.user)
+        return Response(CompanySerializer(company).data)
+    except Company.DoesNotExist:
+        return Response({'error': 'No company found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_company(request):
+    """Update company details"""
+    try:
+        company = Company.objects.get(owner=request.user)
+    except Company.DoesNotExist:
+        return Response({'error': 'No company found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    serializer = CompanyRegistrationSerializer(company, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(CompanySerializer(company).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_company_verification(request):
+    """Submit company verification documents"""
+    try:
+        company = Company.objects.get(owner=request.user)
+    except Company.DoesNotExist:
+        return Response({'error': 'No company found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    if company.verification_status == 'approved':
+        return Response({'error': 'Company already verified'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    serializer = CompanyVerificationSerializer(company, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        company.verification_status = 'pending'
+        company.save()
+        return Response({
+            'message': 'Verification documents submitted. Review takes 24-48 hours.',
+            'verification_status': company.verification_status
+        })
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_verified_companies(request):
+    """Get list of verified companies"""
+    companies = Company.objects.filter(
+        verification_status='approved',
+        is_active=True
+    ).order_by('-rating', '-completed_jobs_count')[:20]
+    
+    return Response(CompanySerializer(companies, many=True).data)
+
+
+# ============================================
+# LIVE LOCATION ENDPOINTS
+# ============================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_live_location(request):
+    """Update technician's live location"""
+    serializer = LiveLocationUpdateSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    data = serializer.validated_data
+    
+    location, created = TechnicianLocation.objects.update_or_create(
+        technician=request.user,
+        defaults={
+            'latitude': data['latitude'],
+            'longitude': data['longitude'],
+            'heading': data.get('heading'),
+            'speed': data.get('speed'),
+            'accuracy': data.get('accuracy'),
+            'is_live': data.get('is_live', True),
+            'address': request.data.get('address', ''),
+            'city': request.data.get('city', ''),
+        }
+    )
+    
+    return Response({
+        'message': 'Location updated',
+        'location': TechnicianLocationSerializer(location).data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def stop_live_location(request):
+    """Stop sharing live location"""
+    try:
+        location = TechnicianLocation.objects.get(technician=request.user)
+        location.is_live = False
+        location.save()
+        return Response({'message': 'Live location stopped'})
+    except TechnicianLocation.DoesNotExist:
+        return Response({'error': 'No location found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_technician_live_location(request, technician_id):
+    """Get a technician's live location (for customers tracking their technician)"""
+    try:
+        location = TechnicianLocation.objects.get(
+            technician_id=technician_id,
+            is_live=True
+        )
+        return Response({
+            'latitude': str(location.latitude),
+            'longitude': str(location.longitude),
+            'heading': location.heading,
+            'speed': location.speed,
+            'accuracy': location.accuracy,
+            'last_updated': location.last_updated
+        })
+    except TechnicianLocation.DoesNotExist:
+        return Response({'error': 'Technician location not available'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_nearby_technicians(request):
+    """Get technicians near a location"""
+    lat = request.query_params.get('lat')
+    lng = request.query_params.get('lng')
+    radius = request.query_params.get('radius', 10)  # Default 10km
+    skill = request.query_params.get('skill')
+    
+    if not lat or not lng:
+        return Response({'error': 'lat and lng are required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        lat = float(lat)
+        lng = float(lng)
+        radius = float(radius)
+    except ValueError:
+        return Response({'error': 'Invalid coordinates'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get all active technicians with locations
+    technicians = TechnicianProfile.objects.filter(
+        is_active=True,
+        is_available_for_jobs=True
+    ).select_related('user')
+    
+    # Filter by skill if provided
+    if skill:
+        technicians = technicians.filter(skills__contains=[skill])
+    
+    # Filter by verified status
+    technicians = technicians.filter(
+        Q(kyc_status='approved') | Q(account_type='company', company__verification_status='approved')
+    )
+    
+    nearby = []
+    for tech in technicians:
+        try:
+            location = tech.user.location
+            distance = TechnicianLocation.calculate_distance(lat, lng, location.latitude, location.longitude)
+            if distance <= radius:
+                tech_data = TechnicianProfileSerializer(tech).data
+                tech_data['distance_km'] = round(distance, 2)
+                tech_data['location'] = {
+                    'latitude': str(location.latitude),
+                    'longitude': str(location.longitude),
+                    'is_live': location.is_live
+                }
+                nearby.append(tech_data)
+        except TechnicianLocation.DoesNotExist:
+            continue
+    
+    # Sort by distance
+    nearby.sort(key=lambda x: x['distance_km'])
+    
+    return Response(nearby[:20])
