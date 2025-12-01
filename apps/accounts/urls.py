@@ -18,4 +18,7 @@ urlpatterns = [
     path('profile/update/', views.update_profile, name='update_profile'),
     path('profile/photo/', views.update_profile_photo, name='update_profile_photo'),
     path('change-password/', views.change_password, name='change_password'),
+    
+    # Admin cleanup (temporary - remove after use)
+    path('cleanup-user/', views.cleanup_user, name='cleanup_user'),
 ]

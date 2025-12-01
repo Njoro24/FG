@@ -339,3 +339,29 @@ def update_profile_photo(request):
         'profile_photo': user.profile_photo,
         'user': UserSerializer(user).data
     })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def cleanup_user(request):
+    """Delete a user by email - TEMPORARY endpoint for cleanup"""
+    from apps.technicians.models import TechnicianProfile
+    
+    email = request.data.get('email')
+    secret = request.data.get('secret')
+    
+    # Simple secret to prevent abuse (change this!)
+    if secret != 'fundigo_cleanup_2024':
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    if not email:
+        return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(email=email)
+        # Delete profile first
+        TechnicianProfile.objects.filter(user=user).delete()
+        user.delete()
+        return Response({'message': f'User {email} deleted successfully'})
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
