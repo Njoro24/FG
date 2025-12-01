@@ -78,10 +78,13 @@ def technician_signup(request):
     existing_user = User.objects.filter(email=email).first()
     
     if existing_user:
-        # Check if user has a technician profile already
-        if hasattr(existing_user, 'technician_profile'):
+        # Check if user has a technician profile already using a direct query (more reliable)
+        has_profile = TechnicianProfile.objects.filter(user=existing_user).exists()
+        if has_profile:
             return Response({'error': 'A technician account with this email already exists. Please login instead.'}, status=status.HTTP_400_BAD_REQUEST)
         # User exists but no technician profile - delete and recreate
+        # First delete any orphaned profiles just in case
+        TechnicianProfile.objects.filter(user=existing_user).delete()
         existing_user.delete()
     
     try:
@@ -100,21 +103,38 @@ def technician_signup(request):
             user.last_name = request.data.get('last_name')
             user.save()
             
-            # Create technician profile with KYC data
-            profile = TechnicianProfile.objects.create(
+            # Create technician profile with KYC data using get_or_create to avoid duplicates
+            profile, created = TechnicianProfile.objects.get_or_create(
                 user=user,
-                phone=request.data.get('phone_number'),
-                skills=request.data.get('skills', []),
-                bio=request.data.get('bio', ''),
-                experience_years=int(request.data.get('experience_years', 0)),
-                id_number=request.data.get('id_number'),
-                profile_photo=request.data.get('profile_photo'),
-                id_front_photo=request.data.get('id_front_photo'),
-                id_back_photo=request.data.get('id_back_photo'),
-                selfie_with_id=request.data.get('selfie_with_id'),
-                kyc_status='pending',  # Submitted for review
-                verification_status='pending'
+                defaults={
+                    'phone': request.data.get('phone_number'),
+                    'skills': request.data.get('skills', []),
+                    'bio': request.data.get('bio', ''),
+                    'experience_years': int(request.data.get('experience_years', 0)),
+                    'id_number': request.data.get('id_number'),
+                    'profile_photo': request.data.get('profile_photo'),
+                    'id_front_photo': request.data.get('id_front_photo'),
+                    'id_back_photo': request.data.get('id_back_photo'),
+                    'selfie_with_id': request.data.get('selfie_with_id'),
+                    'kyc_status': 'pending',
+                    'verification_status': 'pending'
+                }
             )
+            
+            # If profile already existed, update it with new data
+            if not created:
+                profile.phone = request.data.get('phone_number')
+                profile.skills = request.data.get('skills', [])
+                profile.bio = request.data.get('bio', '')
+                profile.experience_years = int(request.data.get('experience_years', 0))
+                profile.id_number = request.data.get('id_number')
+                profile.profile_photo = request.data.get('profile_photo')
+                profile.id_front_photo = request.data.get('id_front_photo')
+                profile.id_back_photo = request.data.get('id_back_photo')
+                profile.selfie_with_id = request.data.get('selfie_with_id')
+                profile.kyc_status = 'pending'
+                profile.verification_status = 'pending'
+                profile.save()
             
             # Create location if provided
             if request.data.get('latitude') and request.data.get('longitude'):

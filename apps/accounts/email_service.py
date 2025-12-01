@@ -16,10 +16,33 @@ except ImportError:
     BREVO_AVAILABLE = False
 
 
+def send_email_via_django(to_email, subject, html_content, text_content=None):
+    """
+    Send email using Django's built-in email backend (Gmail SMTP).
+    """
+    from django.core.mail import EmailMultiAlternatives
+    from django.conf import settings
+    
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content or '',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[to_email]
+        )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+        print(f"✅ Email sent to {to_email} via Django SMTP")
+        return True
+    except Exception as e:
+        print(f"⚠️ Django SMTP email failed: {e}")
+        return False
+
+
 def send_email_via_brevo(to_email, to_name, subject, html_content, text_content=None):
     """
     Send email using Brevo (Sendinblue) API.
-    If Brevo fails, just log and continue - don't block the request.
+    Falls back to Django SMTP if Brevo is not configured.
     OTP is logged to console so users can still verify.
     """
     
@@ -43,11 +66,12 @@ def send_email_via_brevo(to_email, to_name, subject, html_content, text_content=
             return True
         except Exception as e:
             print(f"⚠️ Brevo email failed: {e}")
-            print(f"📝 Email not sent to {to_email} - check Brevo account activation")
-            return False
+            print(f"📝 Falling back to Django SMTP...")
+            return send_email_via_django(to_email, subject, html_content, text_content)
     else:
-        print(f"⚠️ Brevo not configured - email not sent to {to_email}")
-        return False
+        # Fall back to Django's built-in email
+        print(f"⚠️ Brevo not configured - using Django SMTP for {to_email}")
+        return send_email_via_django(to_email, subject, html_content, text_content)
 
 
 def send_otp_email(email, otp):
