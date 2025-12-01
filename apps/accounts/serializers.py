@@ -51,11 +51,31 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         fields = ['email', 'full_name', 'first_name', 'last_name', 'phone_number', 'password', 'password2', 'is_technician']
     
     def validate(self, data):
+        import re
         password = data.get('password')
         password2 = data.get('password2')
         
         if password != password2:
             raise serializers.ValidationError({"password": "Passwords do not match"})
+        
+        # Password strength validation
+        if len(password) < 8:
+            raise serializers.ValidationError({"password": "Password must be at least 8 characters"})
+        
+        if not re.search(r'[A-Z]', password):
+            raise serializers.ValidationError({"password": "Password must contain at least one uppercase letter"})
+        
+        if not re.search(r'[a-z]', password):
+            raise serializers.ValidationError({"password": "Password must contain at least one lowercase letter"})
+        
+        if not re.search(r'\d', password):
+            raise serializers.ValidationError({"password": "Password must contain at least one number"})
+        
+        # Email validation
+        email = data.get('email', '').lower().strip()
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError({"email": "A user with this email already exists"})
+        
         return data
     
     def create(self, validated_data):

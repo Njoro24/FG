@@ -13,7 +13,7 @@ from .throttles import OTPRequestThrottle, OTPVerifyThrottle
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-# @throttle_classes([OTPRequestThrottle])  # Disabled for development
+@throttle_classes([OTPRequestThrottle])
 def signup(request):
     """Register a new user and send OTP for verification"""
     serializer = UserRegistrationSerializer(data=request.data)
@@ -111,7 +111,7 @@ def technician_signup(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-# @throttle_classes([OTPRequestThrottle])  # Disabled for development
+@throttle_classes([OTPRequestThrottle])
 def request_otp(request):
     """Request OTP for email verification"""
     email = request.data.get('email')
@@ -132,7 +132,7 @@ def request_otp(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-# @throttle_classes([OTPVerifyThrottle])  # Disabled for development
+@throttle_classes([OTPVerifyThrottle])
 def verify_otp_view(request):
     """Verify OTP and activate user account"""
     email = request.data.get('email')
@@ -176,6 +176,14 @@ def login(request):
     if not email or not password:
         return Response({'error': 'Email and password are required'}, status=status.HTTP_400_BAD_REQUEST)
     
+    # Check if user exists first
+    try:
+        user_exists = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({
+            'error': 'No account found with this email. Please sign up first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
     user = authenticate(username=email, password=password)
     
     if user:
@@ -192,7 +200,7 @@ def login(request):
             'user': UserSerializer(user).data
         })
     
-    return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+    return Response({'error': 'Incorrect password. Please try again.'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 @api_view(['GET'])
