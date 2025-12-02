@@ -80,6 +80,7 @@ class JobPostingListSerializer(serializers.ModelSerializer):
 class BidSerializer(serializers.ModelSerializer):
     technician = UserSerializer(read_only=True)
     technician_profile = serializers.SerializerMethodField()
+    job_details = serializers.SerializerMethodField()
     
     class Meta:
         model = Bid
@@ -98,6 +99,23 @@ class BidSerializer(serializers.ModelSerializer):
             }
         except:
             return None
+    
+    def get_job_details(self, obj):
+        """Include job details for technician's my bids view"""
+        job = obj.job
+        return {
+            'id': job.id,
+            'title': job.title,
+            'description': job.description,
+            'category': job.category,
+            'address': job.address,
+            'budget_min': job.budget_min,
+            'budget_max': job.budget_max,
+            'status': job.status,
+            'urgency': job.urgency,
+            'customer_name': job.customer.full_name or job.customer.email.split('@')[0],
+            'created_at': job.created_at,
+        }
 
 
 class BidCreateSerializer(serializers.ModelSerializer):

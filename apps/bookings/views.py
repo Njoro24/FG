@@ -286,3 +286,10 @@ class BidViewSet(viewsets.ModelViewSet):
         bid.status = 'withdrawn'
         bid.save()
         return Response({'message': 'Bid withdrawn'})
+    
+    @action(detail=False, methods=['get'])
+    def my_bids(self, request):
+        """Get all bids for the current technician with job details"""
+        bids = Bid.objects.filter(technician=request.user).select_related('job').order_by('-created_at')
+        serializer = BidSerializer(bids, many=True)
+        return Response(serializer.data)
