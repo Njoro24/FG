@@ -45,32 +45,37 @@ def send_email_via_brevo(to_email, to_name, subject, html_content, text_content=
     Does NOT fallback to Django SMTP to avoid timeout issues.
     OTP is logged to console so users can still verify.
     """
+    import threading
     
-    # Try Brevo if available and configured
-    if BREVO_AVAILABLE and BREVO_API_KEY:
+    def send_async():
+        """Send email in background thread"""
         try:
-            api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
-                sib_api_v3_sdk.ApiClient(configuration)
-            )
-            
-            send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
-                to=[{"email": to_email, "name": to_name or to_email}],
-                sender={"email": FROM_EMAIL, "name": FROM_NAME},
-                subject=subject,
-                html_content=html_content,
-                text_content=text_content
-            )
-            
-            response = api_instance.send_transac_email(send_smtp_email)
-            print(f"✅ Email sent to {to_email} via Brevo (ID: {response.message_id})")
-            return True
+            if BREVO_AVAILABLE and BREVO_API_KEY:
+                api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
+                    sib_api_v3_sdk.ApiClient(configuration)
+                )
+                
+                send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+                    to=[{"email": to_email, "name": to_name or to_email}],
+                    sender={"email": FROM_EMAIL, "name": FROM_NAME},
+                    subject=subject,
+                    html_content=html_content,
+                    text_content=text_content
+                )
+                
+                response = api_instance.send_transac_email(send_smtp_email)
+                print(f"✅ Email sent to {to_email} via Brevo (ID: {response.message_id})")
         except Exception as e:
             print(f"⚠️ Brevo email failed: {e}")
-            # Don't fallback to Django SMTP - it causes timeout issues
-            print(f"📝 Email not sent - check OTP in logs above")
-            return False
+    
+    # Send email in background thread so it doesn't block the response
+    if BREVO_AVAILABLE and BREVO_API_KEY:
+        thread = threading.Thread(target=send_async)
+        thread.daemon = True
+        thread.start()
+        print(f"📤 Email queued for {to_email}")
+        return True
     else:
-        # Brevo not configured - just log and return
         print(f"⚠️ Brevo not configured - email not sent to {to_email}")
         print(f"📝 Check OTP in logs above")
         return False
